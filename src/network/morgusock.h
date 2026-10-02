@@ -105,7 +105,7 @@ MORGUSOCK_API int MorguSockSetNonblock(MorguSocket s, int enable)
 {
 #ifdef _WIN32
     u_long mode = enable ? 1 : 0;
-    return ioctlsocket(s, FIONBIO, &mode);
+    return ioctlsocket(s, (long int)FIONBIO, &mode);
 #else
     int flags = fcntl(s, F_GETFL, 0);
     if (flags < 0) return -1;

@@ -1,6 +1,6 @@
 BasedOnStyle: LLVM
 ---
-Language: Cpp
-PointerAlignment: Right
+Language: C
+PointerAlignment: Left
 ColumnLimit: 100
 IndentWidth: 2

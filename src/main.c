@@ -1,10 +1,10 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "common/dynarray.h"
+#include "common/lstring.h"
 #include "network/morgusock.h"
 
-int sockclient() {
+/*int sockclient() {
   char err[128];
 
   if (MorguSockInit() != 0) {
@@ -44,16 +44,10 @@ int sockclient() {
   MorguSockClose(s);
   MorguSockClean();
   return 0;
-}
+}*/
 
-int main(int argc, char *argv[]) {
-  int* testArray = NULL;
-  M_DynArrayInit(testArray);
-
-  for(int i = 0; i < 5; i++) {
-    M_DynArrayPush(testArray, i);
-  }
-
-  M_DynArrayRemove(testArray, 0);
-  printf("%i", testArray[0]);
+int main(void) {
+  LString* greet = LStringCreate("hello,");
+  LStringAppendCString(&greet, " world!");
+  printf("%s", LStringGetData(greet));
 }
