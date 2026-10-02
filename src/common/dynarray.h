@@ -3,8 +3,8 @@
 #include <string.h> // Required for memmove
 
 typedef struct {
-    size_t capacity;
-    size_t size;
+    size_t Capacity;
+    size_t Size;
 } DynArrayHeader;
 
 #define M_DynArrayGetHeader(v) ((DynArrayHeader *)(v) - 1)
