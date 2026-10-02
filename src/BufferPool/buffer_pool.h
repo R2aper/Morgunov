@@ -6,6 +6,7 @@ typedef struct Frame {
   uint32_t pin_count; // How many threads are using page
   bool is_dirty;      // Was it modifed?
   bool ref_bit;       // For Clock algorithm
+  mtx_t lock;
 
 } Frame;
 
