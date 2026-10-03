@@ -2,7 +2,7 @@
 #include <string.h>
 
 #include "common/lstring.h"
-#include "network/morgusock.h"
+#include "network/connectionHandler.h"
 
 /*int sockclient() {
   char err[128];
@@ -46,8 +46,4 @@
   return 0;
 }*/
 
-int main(void) {
-  LString* greet = LStringCreate("hello,");
-  LStringAppendCString(&greet, " world!");
-  printf("%s", LStringGetData(greet));
-}
+int main(void) { LaunchConnectionHandler(); }

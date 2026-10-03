@@ -17,7 +17,8 @@ supported_flags = cc.get_supported_arguments(extra_flags)
 
 src = files(
   'src/main.c',
-  'src/common/lstring.c'
+  'src/common/lstring.c',
+  'src/network/connectionHandler.c'
 )
 
 executable('Morgunov',
