@@ -6,7 +6,7 @@
 
 static LString* _LStringAllocate(size_t capacity) {
 
-  // heander + capacity bytes + 1 for the trailing \0
+  // header + capacity bytes + 1 for the trailing \0
   if (capacity > SIZE_MAX - sizeof(LString) - 1) {
     return NULL;
   }
