@@ -24,8 +24,9 @@ bool LStringIsEmpty(const LString* string);
 
 // mutators take LString** because they may reallocate the whole struct
 bool LStringReserve(LString** string, size_t minCapacity);
-bool LStringAppend(LString** string, const LString *other);
+bool LStringAppend(LString** string, const LString* other);
 bool LStringAppendBytes(LString** string, const void* bytes, size_t length);
+bool LStringInsertBytes(LString** string, size_t index, const void* bytes, size_t length);
 bool LStringAppendCString(LString** string, const char* source);
 bool LStringAppendChar(LString** string, char character);
 void LStringClear(LString* string);

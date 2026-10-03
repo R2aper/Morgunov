@@ -68,6 +68,10 @@ bool LStringReserve(LString** string, size_t minCapacity) {
     return false;
   }
 
+  if (newCapacity < 16 && minCapacity <= 16) { // We don't want allocate 1 byte if newCapacity  == 0
+    newCapacity = 16;
+  }
+
   LString* grown = realloc(current, sizeof(LString) + newCapacity + 1);
   if (grown == NULL) {
     return false;
@@ -120,6 +124,53 @@ bool LStringAppend(LString** string, const LString* other) {
 
 bool LStringAppendChar(LString** string, char character) {
   return LStringAppendBytes(string, &character, 1);
+}
+
+bool LStringInsertBytes(LString** string, size_t index, const void* bytes, size_t length) {
+  if (length == 0) {
+    return true;
+  }
+
+  LString* current = *string;
+
+  if (index > current->Length) {
+    false;
+  }
+
+  if (length > SIZE_MAX - current->Length) {
+    return false;
+  }
+
+  const char* source = bytes;
+  bool isInside = source >= current->Data && source < current->Data + current->Length;
+  size_t offset = isInside ? (size_t)(source - current->Data) : 0;
+
+  if (!LStringReserve(string, current->Length + length)) {
+    return false;
+  }
+
+  current = *string;
+  if (isInside) {
+    source = current->Data + offset;
+  }
+
+  size_t moveSize = current->Length - index;
+  if (moveSize > 0) {
+    memmove(current->Data + index + length, current->Data + index, moveSize);
+  }
+
+  memcpy(current->Data + index, source, length);
+  current->Length += length;
+  current->Data[current->Length] = '\0';
+  return true;
+}
+
+bool LStringInsert(LString** string, size_t index, const LString* other) {
+  return LStringInsertBytes(string, index, other->Data, other->Length);
+}
+
+bool LStringInsertCString(LString** string, size_t index, const char* source) {
+  return LStringInsertBytes(string, index, source, source != NULL ? strlen(source) : 0);
 }
 
 void LStringClear(LString* string) {
