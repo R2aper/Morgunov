@@ -29,6 +29,9 @@ bool LStringAppendBytes(LString** string, const void* bytes, size_t length);
 bool LStringInsertBytes(LString** string, size_t index, const void* bytes, size_t length);
 bool LStringAppendCString(LString** string, const char* source);
 bool LStringAppendChar(LString** string, char character);
+bool LStringInsert(LString** string, size_t index, const LString* other);
+bool LStringInsertCString(LString** string, size_t index, const char* source);
+
 void LStringClear(LString* string);
 
 int LStringCompare(const LString* left, const LString* right);
