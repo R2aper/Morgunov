@@ -1,16 +1,53 @@
+/**
+ * @file dynarray.h 
+ * @brief defines DynArray (dynamic, length-prefixed array)
+ */
+
+
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h> // Required for memmove
+#include <string.h>
 
+/**
+ * @struct
+ * @brief Represents a length-prefixed dynamic array's header
+ * 
+ * This structure defines a simple span of user data, dynamically managed
+ * by the controlling macros. The structure itself is prefixed with a header
+ * which the struct itself represents. Using pointer arithmetic, you may access
+ * dynarray's items, which are located right after this header.
+ */
 typedef struct {
   size_t Capacity;
   size_t Size;
 } DynArrayHeader;
 
+/**
+ * @brief Returns a header of a dynarray.
+ * @param v DynArray pointer
+ * @returns @ref DynArrayHeader of @p v
+ */
 #define M_DynArrayGetHeader(v) ((DynArrayHeader*)(v) - 1)
+
+/**
+ * @brief Returns size of dynarray
+ * @param v DynArray pointer
+ * @returns Size of @p v
+ */
 #define M_DynArrayGetSize(v) ((v) ? M_DynArrayGetHeader(v)->Size : 0)
+
+/**
+ * @brief Returns capacity of dynarray
+ * @param v DynArray pointer
+ * @returns Capcity of @p v
+ */
 #define M_DynArrayGetCapacity(v) ((v) ? M_DynArrayGetHeader(v)->capacity : 0)
 
+/**
+ * @brief Creates a new DynArray
+ * 
+ * @param v User type pointer
+ */
 #define M_DynArrayInit(v)                                                                          \
   do {                                                                                             \
     DynArrayHeader* h = (DynArrayHeader*)malloc(sizeof(DynArrayHeader) + (4 * sizeof(*(v))));      \
@@ -23,6 +60,10 @@ typedef struct {
     (v) = (void*)(h + 1);                                                                          \
   } while (0)
 
+/**
+ * @brief Reallocates a dynarray if size exceeds capacity
+ * @attention Not intended for use outside @ref dynarray.h
+ */
 #define M_DynArrayGrowIfNeeded(v)                                                                  \
   do {                                                                                             \
     DynArrayHeader* h = M_DynArrayGetHeader(v);                                                    \
@@ -37,6 +78,11 @@ typedef struct {
     }                                                                                              \
   } while (0)
 
+/**
+ * @brief Pushes new value into provided dynarray
+ * @param v dynarray
+ * @param val value to be pushed
+ */
 #define M_DynArrayPush(v, val)                                                                     \
   do {                                                                                             \
     M_DynArrayGrowIfNeeded(v);                                                                     \
@@ -45,8 +91,10 @@ typedef struct {
   } while (0)
 
 /**
- * Inserts an element at a specific index.
- * Shifts elements at and after the index to the right.
+ * @brief Inserts an element at a specific index, shifts elements at and after the index to the right.
+ * @param v dynarray
+ * @param idx index of insertion
+ * @param val value to be inserted
  */
 #define M_DynArrayInsert(v, idx, val)                                                              \
   do {                                                                                             \
@@ -64,8 +112,9 @@ typedef struct {
   } while (0)
 
 /**
- * Removes an element at a specific index.
- * Shifts all subsequent elements to the left.
+ * @brief Removes an element at a specific index, shifts all subsequent elements to the left.
+ * @param v dynarray
+ * @param idx index of removal
  */
 #define M_DynArrayRemove(v, idx)                                                                   \
   do {                                                                                             \
@@ -80,6 +129,11 @@ typedef struct {
     }                                                                                              \
   } while (0)
 
+/**
+ * @brief Frees the memory of dynarray
+ * @param v dynarray to be freed
+ * @note invalidates @p v
+ */
 #define M_DynArrayFree(v)                                                                          \
   do {                                                                                             \
     if (v) {                                                                                       \
