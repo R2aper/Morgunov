@@ -11,129 +11,128 @@ static inline uint32_t _GetBucketIdx(uint32_t hash) { return hash & (HT_NUM_BUCK
 
 static inline uint32_t _GetStripeIdx(uint32_t hash) { return (hash >> 11) & (HT_LOCK_STRIPES - 1); }
 
-void ptInit(PageTable* pt) {
-  for (int i = 0; i < HT_NUM_BUCKETS; i++) {
-    pt->buckets[i] = NULL;
-  }
-  for (int i = 0; i < HT_LOCK_STRIPES; i++) {
-    mtx_init(&pt->stripes[i], mtx_plain);
-  }
+void PtInit(PageTable* pt) {
+  for (int i = 0; i < HT_NUM_BUCKETS; i++)
+    pt->Buckets[i] = NULL;
 
-  mtx_init(&pt->freeListLock, mtx_plain);
-
-  for (int i = 0; i < POOL_SIZE - 1; i++) {
-    pt->nodePool[i].next = &pt->nodePool[i + 1];
-  }
-  pt->nodePool[POOL_SIZE - 1].next = NULL;
-  pt->freeList = &pt->nodePool[0];
-}
-
-void ptDestroy(PageTable* pt) {
   for (int i = 0; i < HT_LOCK_STRIPES; i++)
-    mtx_destroy(&pt->stripes[i]);
+    mtx_init(&pt->Stripes[i], mtx_plain);
 
-  mtx_destroy(&pt->freeListLock);
+  mtx_init(&pt->FreeListLock, mtx_plain);
+
+  for (int i = 0; i < POOL_SIZE - 1; i++)
+    pt->NodePool[i].Next = &pt->NodePool[i + 1];
+
+  pt->NodePool[POOL_SIZE - 1].Next = NULL;
+  pt->FreeList = &pt->NodePool[0];
 }
 
-HtNode* ptAllocNode(PageTable* pt) {
-  mtx_lock(&pt->freeListLock);
-  if (!pt->freeList) { // out of pre-allocated nodes
-    mtx_unlock(&pt->freeListLock);
+void PtDestroy(PageTable* pt) {
+  for (int i = 0; i < HT_LOCK_STRIPES; i++)
+    mtx_destroy(&pt->Stripes[i]);
+
+  mtx_destroy(&pt->FreeListLock);
+}
+
+HtNode* PtAllocNode(PageTable* pt) {
+  mtx_lock(&pt->FreeListLock);
+  if (!pt->FreeList) { // out of pre-allocated nodes
+    mtx_unlock(&pt->FreeListLock);
     return NULL;
   }
-  HtNode* node = pt->freeList;
-  pt->freeList = node->next;
-  mtx_unlock(&pt->freeListLock);
+  HtNode* node = pt->FreeList;
+  pt->FreeList = node->Next;
+  mtx_unlock(&pt->FreeListLock);
 
   return node;
 }
 
-void ptFreeNode(PageTable* pt, HtNode* node) {
-  mtx_lock(&pt->freeListLock);
-  node->next = pt->freeList;
-  pt->freeList = node;
-  mtx_unlock(&pt->freeListLock);
+void PtFreeNode(PageTable* pt, HtNode* node) {
+  mtx_lock(&pt->FreeListLock);
+  node->Next = pt->FreeList;
+  pt->FreeList = node;
+  mtx_unlock(&pt->FreeListLock);
 }
 
-uint32_t ptLookup(PageTable* pt, uint32_t pageId) {
+uint32_t PtLookup(PageTable* pt, uint32_t pageId) {
   uint32_t hash = _HashPageId(pageId);
-  uint32_t b_idx = _GetBucketIdx(hash);
-  uint32_t s_idx = _GetStripeIdx(hash);
+  uint32_t bIdx = _GetBucketIdx(hash);
+  uint32_t sIdx = _GetStripeIdx(hash);
 
-  mtx_lock(&pt->stripes[s_idx]);
-  HtNode* curr = pt->buckets[b_idx];
+  mtx_lock(&pt->Stripes[sIdx]);
+  HtNode* curr = pt->Buckets[bIdx];
   while (curr) {
-    if (curr->pageId == pageId) {
-      uint32_t fid = curr->frameId;
-      mtx_unlock(&pt->stripes[s_idx]);
+    if (curr->PageId == pageId) {
+      uint32_t fid = curr->FrameId;
+      mtx_unlock(&pt->Stripes[sIdx]);
       return fid;
     }
-    curr = curr->next;
+    curr = curr->Next;
   }
-  mtx_unlock(&pt->stripes[s_idx]);
+  mtx_unlock(&pt->Stripes[sIdx]);
 
   return INVALID_FRAME_ID;
 }
 
-bool ptInsert(PageTable* pt, uint32_t pageId, uint32_t frameId) {
+bool PtInsert(PageTable* pt, uint32_t pageId, uint32_t frameId) {
   uint32_t hash = _HashPageId(pageId);
-  uint32_t b_idx = _GetBucketIdx(hash);
-  uint32_t s_idx = _GetStripeIdx(hash);
+  uint32_t bIdx = _GetBucketIdx(hash);
+  uint32_t sIdx = _GetStripeIdx(hash);
 
-  mtx_lock(&pt->stripes[s_idx]);
+  mtx_lock(&pt->Stripes[sIdx]);
 
   // If an entry for this page already exists, update its FrameId in place
-  HtNode* curr = pt->buckets[b_idx];
+  HtNode* curr = pt->Buckets[bIdx];
   while (curr) {
-    if (curr->pageId == pageId) {
-      curr->frameId = frameId;
-      mtx_unlock(&pt->stripes[s_idx]);
+    if (curr->PageId == pageId) {
+      curr->FrameId = frameId;
+      mtx_unlock(&pt->Stripes[sIdx]);
       return true;
     }
-    curr = curr->next;
+    curr = curr->Next;
   }
 
-  HtNode* new_node = ptAllocNode(pt);
-  if (!new_node) { // Pool full
-    mtx_unlock(&pt->stripes[s_idx]);
+  HtNode* newNode = PtAllocNode(pt);
+  if (!newNode) { // Pool full
+    mtx_unlock(&pt->Stripes[sIdx]);
 
     return false;
   }
 
-  new_node->pageId = pageId;
-  new_node->frameId = frameId;
-  new_node->next = pt->buckets[b_idx];
-  pt->buckets[b_idx] = new_node;
+  newNode->PageId = pageId;
+  newNode->FrameId = frameId;
+  newNode->Next = pt->Buckets[bIdx];
+  pt->Buckets[bIdx] = newNode;
 
-  mtx_unlock(&pt->stripes[s_idx]);
+  mtx_unlock(&pt->Stripes[sIdx]);
 
   return true;
 }
 
-bool ptDelete(PageTable* pt, uint32_t pageId) {
+bool PtDelete(PageTable* pt, uint32_t pageId) {
   uint32_t hash = _HashPageId(pageId);
-  uint32_t b_idx = _GetBucketIdx(hash);
-  uint32_t s_idx = _GetStripeIdx(hash);
+  uint32_t bIdx = _GetBucketIdx(hash);
+  uint32_t sIdx = _GetStripeIdx(hash);
 
-  mtx_lock(&pt->stripes[s_idx]);
-  HtNode* curr = pt->buckets[b_idx];
+  mtx_lock(&pt->Stripes[sIdx]);
+  HtNode* curr = pt->Buckets[bIdx];
   HtNode* prev = NULL;
 
   while (curr) {
-    if (curr->pageId == pageId) {
-      if (prev == NULL) {
-        pt->buckets[b_idx] = curr->next;
-      } else {
-        prev->next = curr->next;
-      }
-      ptFreeNode(pt, curr);
-      mtx_unlock(&pt->stripes[s_idx]);
+    if (curr->PageId == pageId) {
+      if (prev == NULL)
+        pt->Buckets[bIdx] = curr->Next;
+      else
+        prev->Next = curr->Next;
+
+      PtFreeNode(pt, curr);
+      mtx_unlock(&pt->Stripes[sIdx]);
       return true;
     }
     prev = curr;
-    curr = curr->next;
+    curr = curr->Next;
   }
-  mtx_unlock(&pt->stripes[s_idx]);
+  mtx_unlock(&pt->Stripes[sIdx]);
 
   return false;
 }

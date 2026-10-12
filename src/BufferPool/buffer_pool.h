@@ -3,32 +3,32 @@
 #include "page_table.h"
 
 typedef struct Frame {
-  uint32_t pageId;
-  uint32_t pinCount; // How many threads are using page
-  bool isDirty;      // Was it modifed?
-  bool refBit;       // For Clock algorithm
-  mtx_t lock;
+  uint32_t PageId;
+  uint32_t PinCount; // How many threads are using page
+  bool IsDirty;      // Was it modifed?
+  bool RefBit;       // For Clock algorithm
+  mtx_t Lock;
 
 } Frame;
 
 typedef struct BufferPool {
-  uint8_t memory[POOL_SIZE][PAGE_SIZE];
-  Frame frames[POOL_SIZE];
-  PageTable page_table;
-  mtx_t poolLock;
-  uint32_t clockHand; // For Clock algorithm
+  uint8_t Memory[POOL_SIZE][PAGE_SIZE];
+  Frame Frames[POOL_SIZE];
+  PageTable PageTable;
+  mtx_t PoolLock;
+  uint32_t ClockHand; // For Clock algorithm
 
 } BufferPool;
 
 /// @brief Init Buffer Pool
-void bpInit(BufferPool* bp);
+void BpInit(BufferPool* bp);
 
 /// @brief Destroy Buffer Pool
-void bpDestroy(BufferPool* bp);
+void BpDestroy(BufferPool* bp);
 
 /// @brief Fetch page from pool
 /// @return pointer to page
-uint8_t* bpFetchPage(BufferPool* bp, uint32_t pageId);
+uint8_t* BpFetchPage(BufferPool* bp, uint32_t pageId);
 
 /// @brief Free page
-void bpUnpinPage(BufferPool* bp, uint32_t pageId, bool isDirty);
+void BpUnpinPage(BufferPool* bp, uint32_t pageId, bool isDirty);
