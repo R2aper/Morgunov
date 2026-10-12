@@ -22,8 +22,8 @@ static uint32_t _FindVictim(BufferPool* bp) {
 
     Frame* f = &bp->Frames[idx];
 
-    // We can't replace page that in use
-    if (f->PinCount > 0)
+    // We can't replace page that in use or loading
+    if (f->PinCount > 0 || f->IsLoading)
       continue;
 
     // If the access bit is set, we clear it and give it a "second chance."
@@ -45,6 +45,7 @@ void BpInit(BufferPool* bp) {
     bp->Frames[i].PageId = INVALID_PAGE_ID;
     bp->Frames[i].PinCount = 0;
     bp->Frames[i].IsDirty = false;
+    bp->Frames[i].IsLoading = false;
     bp->Frames[i].RefBit = false;
     mtx_init(&bp->Frames[i].Lock, mtx_plain);
   }
@@ -91,64 +92,79 @@ uint8_t* BpFetchPage(BufferPool* bp, uint32_t pageId) {
 
   // Search for empty page
   for (uint32_t i = 0; i < POOL_SIZE; i++) {
-    if (bp->Frames[i].PageId == INVALID_PAGE_ID) {
+    if (bp->Frames[i].PageId == INVALID_PAGE_ID && !bp->Frames[i].IsLoading) {
       victimId = i;
       break;
     }
   }
 
-  Frame* victim = NULL;
-  // If there is no empty page, use clock algorithm
   if (victimId == INVALID_FRAME_ID) {
-    // NOTE: poolLock is still held to protect from data races(Should be
-    // rewritten if necessary)
     victimId = _FindVictim(bp);
-
-    if (victimId ==
-        INVALID_FRAME_ID) { // All pages in the pool are currently pinned by other threads
+    if (victimId == INVALID_FRAME_ID) {
       mtx_unlock(&bp->PoolLock);
       return NULL;
     }
-
-    victim = &bp->Frames[victimId];
-    mtx_lock(&victim->Lock);
-
-    if (victim->IsDirty)
-      _DiskWrite(victim->PageId, bp->Memory[victimId]);
-
-    PtDelete(&bp->PageTable, victim->PageId);
-
-    _DiskRead(pageId, bp->Memory[victimId]);
-
-    victim->PageId = pageId;
-    victim->PinCount = 1;
-    victim->IsDirty = false;
-    victim->RefBit = true;
-
-    mtx_unlock(&victim->Lock);
-  } else {
-    Frame* f = &bp->Frames[victimId];
-    mtx_lock(&f->Lock);
-
-    _DiskRead(pageId, bp->Memory[victimId]);
-
-    f->PageId = pageId;
-    f->PinCount = 1;
-    f->IsDirty = false;
-    f->RefBit = true;
-
-    mtx_unlock(&f->Lock);
   }
 
+  Frame* victim = &bp->Frames[victimId];
+  mtx_lock(&victim->Lock);
+
+  // Secure loading frame
+  victim->IsLoading = true;
+  uint32_t oldPageId = victim->PageId;
+  bool wasDirty = victim->IsDirty;
+
+  // Unlock global pool lock
+  mtx_unlock(&bp->PoolLock);
+
+  if (wasDirty && oldPageId != INVALID_PAGE_ID)
+    _DiskWrite(oldPageId, bp->Memory[victimId]);
+
+  _DiskRead(pageId, bp->Memory[victimId]);
+
+  // Lock global pool lock for PageTable
+  mtx_lock(&bp->PoolLock);
+
+  // Protection from dupicates
+  uint32_t existingFrameId = PtLookup(&bp->PageTable, pageId);
+  if (existingFrameId != INVALID_FRAME_ID && existingFrameId != victimId) {
+    Frame* existingFrame = &bp->Frames[existingFrameId];
+    mtx_lock(&existingFrame->Lock);
+    mtx_unlock(&bp->PoolLock);
+
+    existingFrame->PinCount++;
+    existingFrame->RefBit = true;
+    mtx_unlock(&existingFrame->Lock);
+
+    // Clear victim
+    mtx_lock(&victim->Lock);
+    victim->IsLoading = false;
+    victim->PinCount = 0;
+    victim->PageId = INVALID_PAGE_ID;
+    victim->IsDirty = false;
+    mtx_unlock(&victim->Lock);
+
+    return bp->Memory[existingFrameId];
+  }
+
+  if (oldPageId != INVALID_PAGE_ID)
+    PtDelete(&bp->PageTable, oldPageId);
+
   if (!PtInsert(&bp->PageTable, pageId, victimId)) {
-    if (victim) {
-      victim->PageId = INVALID_PAGE_ID;
-      victim->PinCount = 0;
-    }
+    victim->IsLoading = false;
+    victim->PageId = INVALID_PAGE_ID;
     mtx_unlock(&victim->Lock);
     mtx_unlock(&bp->PoolLock);
     return NULL;
   }
+
+  victim->PageId = pageId;
+  victim->IsDirty = false;
+  victim->PinCount = 1;
+  victim->RefBit = true;
+  victim->IsLoading = false;
+
+  mtx_unlock(&victim->Lock);
   mtx_unlock(&bp->PoolLock);
 
   return bp->Memory[victimId];
@@ -164,11 +180,12 @@ void BpUnpinPage(BufferPool* bp, uint32_t pageId, bool isDirty) {
     mtx_lock(&f->Lock);
     mtx_unlock(&bp->PoolLock);
 
-    if (f->PinCount > 0)
-      f->PinCount--;
-
-    if (isDirty)
-      f->IsDirty = true;
+    if (f->PageId == pageId) {
+      if (f->PinCount > 0)
+        f->PinCount--;
+      if (isDirty)
+        f->IsDirty = true;
+    }
 
     mtx_unlock(&f->Lock);
   } else
