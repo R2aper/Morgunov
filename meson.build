@@ -15,14 +15,28 @@ extra_flags = [
 
 supported_flags = cc.get_supported_arguments(extra_flags)
 
-src = files(
-  'src/main.c',
+core_src = [
   'src/common/lstring.c',
-  'src/network/connectionHandler.c'
-)
+  'src/common/event.c',
+  'src/network/connectionHandler.c',
+]
+main_src = core_src + ['src/main.c']
+test_src = [
+  'test/main.c',
+  'test/morgutest.c',
+  'test/unitDynarray.c',
+  'test/unitEvent.c'
+] + core_src
 
 executable('Morgunov',
-  src,
+  main_src,
   c_args: supported_flags,
   dependencies : ws2_32_dep
 )
+
+test_exe = executable('MorgunovTest', 
+test_src,
+dependencies: ws2_32_dep
+)
+
+test('Morgunov Tests', test_exe, verbose: true)
