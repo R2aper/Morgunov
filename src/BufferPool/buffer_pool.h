@@ -1,6 +1,7 @@
 #pragma once
 
 #include "page_table.h"
+#define INVALID_FRAME_ID ((uint32_t)-1)
 
 typedef struct Frame {
   uint32_t PageId;

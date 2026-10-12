@@ -1,14 +1,10 @@
 #pragma once
 
+#include "config.h"
 #include <stdbool.h>
 #include <stdint.h>
 #include <threads.h>
 
-#define HT_NUM_BUCKETS 2048
-#define HT_LOCK_STRIPES 64
-#define PAGE_SIZE 4096
-#define POOL_SIZE 256
-#define INVALID_FRAME_ID ((uint32_t)-1)
 #define INVALID_PAGE_ID ((uint32_t)-1)
 
 typedef struct HtNode {
