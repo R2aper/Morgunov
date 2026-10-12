@@ -9,6 +9,11 @@
 #include <string.h>
 
 /**
+ * @brief Value returned by the find macros when no element matches
+ */
+#define M_DYNARRAY_NOT_FOUND ((int)(SIZE_MAX))
+
+/**
  * @struct
  * @brief Represents a length-prefixed dynamic array's header
  * 
@@ -41,7 +46,7 @@ typedef struct {
  * @param v DynArray pointer
  * @returns Capcity of @p v
  */
-#define M_DynArrayGetCapacity(v) ((v) ? M_DynArrayGetHeader(v)->capacity : 0)
+#define M_DynArrayGetCapacity(v) ((v) ? M_DynArrayGetHeader(v)->Capacity : 0)
 
 /**
  * @brief Creates a new DynArray
@@ -141,3 +146,43 @@ typedef struct {
       (v) = NULL;                                                                                  \
     }                                                                                              \
   } while (0)
+
+/**
+ * @brief Finds the first element equal to a value (compared with ==)
+ * @param v dynarray
+ * @param val value to look for
+ * @param out_idx size_t lvalue that receives the index of the first match,
+ *                or @ref M_DYNARRAY_NOT_FOUND
+ * @note Works for types comparable with ==. For strings or structs use
+ *       @ref M_DynArrayFindBy. Safe on a NULL dynarray. @p val is evaluated
+ *       once per element, so avoid side effects.
+ */
+#define M_DynArrayFind(v, val, out_idx)                                                          \
+do {                                                                                             \
+  size_t n_ = M_DynArrayGetSize(v);                                                              \
+  (out_idx) = M_DYNARRAY_NOT_FOUND;                                                              \
+  for (size_t i_ = 0; i_ < n_; i_++) {                                                           \
+    if ((v)[i_] == (val)) {                                                                      \
+      (out_idx) = (int)i_;                                                                       \
+      break;                                                                                     \
+    }                                                                                            \
+  }                                                                                              \
+} while (0)
+
+/**
+* @brief Finds the first element for which a predicate returns nonzero
+* @param v dynarray
+* @param out_idx size_t lvalue that receives the index, or @ref M_DYNARRAY_NOT_FOUND
+* @param pred function of the form `int pred(const T* elem)`
+*/
+#define M_DynArrayFindBy(v, out_idx, pred)                                                       \
+do {                                                                                             \
+  size_t n_ = M_DynArrayGetSize(v);                                                              \
+  (out_idx) = M_DYNARRAY_NOT_FOUND;                                                              \
+  for (size_t i_ = 0; i_ < n_; i_++) {                                                           \
+    if (pred(&(v)[i_])) {                                                                        \
+      (out_idx) = i_;                                                                            \
+      break;                                                                                     \
+    }                                                                                            \
+  }                                                                                              \
+} while (0)
