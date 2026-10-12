@@ -21,6 +21,7 @@ typedef struct BufferPool {
 } BufferPool;
 
 /// @brief Init Buffer Pool
+/// @note bp should be freed
 void BpInit(BufferPool* bp);
 
 /// @brief Destroy Buffer Pool

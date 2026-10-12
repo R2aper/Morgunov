@@ -1,4 +1,5 @@
 #include "buffer_pool.h"
+#include <malloc.h>
 #include <string.h>
 #include <threads.h>
 
@@ -15,7 +16,7 @@ static void _DiskWrite(uint32_t pageId, uint8_t* buffer) {
 
 // Page replacement algorithm - Clock
 static uint32_t _FindVictim(BufferPool* bp) {
-  for (;;) {
+  for (uint32_t i = 0; i < POOL_SIZE; i++) {
     uint32_t idx = bp->ClockHand;
     bp->ClockHand = (bp->ClockHand + 1) % POOL_SIZE;
 
@@ -33,9 +34,13 @@ static uint32_t _FindVictim(BufferPool* bp) {
       return idx;
     }
   }
+
+  return INVALID_FRAME_ID; // No victim today
 }
 
 void BpInit(BufferPool* bp) {
+  bp = (BufferPool*)calloc(1, sizeof(BufferPool));
+
   for (int i = 0; i < POOL_SIZE; i++) {
     bp->Frames[i].PageId = INVALID_PAGE_ID;
     bp->Frames[i].PinCount = 0;
@@ -58,6 +63,8 @@ void BpDestroy(BufferPool* bp) {
 
   PtDestroy(&bp->PageTable);
   mtx_destroy(&bp->PoolLock);
+
+  free(bp);
 }
 
 uint8_t* BpFetchPage(BufferPool* bp, uint32_t pageId) {
@@ -90,12 +97,20 @@ uint8_t* BpFetchPage(BufferPool* bp, uint32_t pageId) {
     }
   }
 
+  Frame* victim = NULL;
   // If there is no empty page, use clock algorithm
   if (victimId == INVALID_FRAME_ID) {
     // NOTE: poolLock is still held to protect from data races(Should be
     // rewritten if necessary)
     victimId = _FindVictim(bp);
-    Frame* victim = &bp->Frames[victimId];
+
+    if (victimId ==
+        INVALID_FRAME_ID) { // All pages in the pool are currently pinned by other threads
+      mtx_unlock(&bp->PoolLock);
+      return NULL;
+    }
+
+    victim = &bp->Frames[victimId];
     mtx_lock(&victim->Lock);
 
     if (victim->IsDirty)
@@ -125,7 +140,15 @@ uint8_t* BpFetchPage(BufferPool* bp, uint32_t pageId) {
     mtx_unlock(&f->Lock);
   }
 
-  PtInsert(&bp->PageTable, pageId, victimId);
+  if (!PtInsert(&bp->PageTable, pageId, victimId)) {
+    if (victim) {
+      victim->PageId = INVALID_PAGE_ID;
+      victim->PinCount = 0;
+    }
+    mtx_unlock(&victim->Lock);
+    mtx_unlock(&bp->PoolLock);
+    return NULL;
+  }
   mtx_unlock(&bp->PoolLock);
 
   return bp->Memory[victimId];
