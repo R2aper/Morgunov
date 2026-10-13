@@ -19,11 +19,12 @@ core_src = [
   'src/common/lstring.c',
   'src/common/event.c',
   'src/network/connectionHandler.c',
+  'src/bufferPool/pageTable.c',
+  'src/bufferPool/bufferPool.c'
 ]
 main_src = core_src + ['src/main.c']
 test_src = [
   'test/main.c',
-  'test/morgutest.c',
   'test/unitDynarray.c',
   'test/unitEvent.c'
 ] + core_src

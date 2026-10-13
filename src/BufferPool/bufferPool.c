@@ -1,7 +1,7 @@
-#include "buffer_pool.h"
+#include "bufferPool.h"
 #include <malloc.h>
 #include <string.h>
-#include <threads.h>
+#include "src/common/crossthreads.h"
 
 static void _DiskRead(uint32_t pageId, uint8_t* buffer) {
   // TODO:
@@ -47,10 +47,10 @@ void BpInit(BufferPool* bp) {
     bp->Frames[i].IsDirty = false;
     bp->Frames[i].IsLoading = false;
     bp->Frames[i].RefBit = false;
-    mtx_init(&bp->Frames[i].Lock, mtx_plain);
+    (void)mtx_init(&bp->Frames[i].Lock, mtx_plain);
   }
   PtInit(&bp->PageTable);
-  mtx_init(&bp->PoolLock, mtx_plain);
+  (void)mtx_init(&bp->PoolLock, mtx_plain);
   bp->ClockHand = 0;
 }
 
@@ -59,31 +59,31 @@ void BpDestroy(BufferPool* bp) {
   for (int i = 0; i < POOL_SIZE; i++) {
     if (bp->Frames[i].PageId != INVALID_PAGE_ID && bp->Frames[i].IsDirty)
       _DiskWrite(bp->Frames[i].PageId, bp->Memory[i]);
-    mtx_destroy(&bp->Frames[i].Lock);
+    (void)mtx_destroy(&bp->Frames[i].Lock);
   }
 
   PtDestroy(&bp->PageTable);
-  mtx_destroy(&bp->PoolLock);
+  (void)mtx_destroy(&bp->PoolLock);
 
   free(bp);
 }
 
 uint8_t* BpFetchPage(BufferPool* bp, uint32_t pageId) {
-  mtx_lock(&bp->PoolLock);
+  (void)mtx_lock(&bp->PoolLock);
 
   // Check if page already in pool
   uint32_t frameId = PtLookup(&bp->PageTable, pageId);
   if (frameId != INVALID_FRAME_ID) {
     Frame* f = &bp->Frames[frameId];
 
-    mtx_lock(&f->Lock);
+    (void)mtx_lock(&f->Lock);
 
-    mtx_unlock(&bp->PoolLock);
+    (void)mtx_unlock(&bp->PoolLock);
 
     f->PinCount++;
     f->RefBit = true;
 
-    mtx_unlock(&f->Lock);
+    (void)mtx_unlock(&f->Lock);
     return bp->Memory[frameId];
   }
 
@@ -101,13 +101,13 @@ uint8_t* BpFetchPage(BufferPool* bp, uint32_t pageId) {
   if (victimId == INVALID_FRAME_ID) {
     victimId = _FindVictim(bp);
     if (victimId == INVALID_FRAME_ID) {
-      mtx_unlock(&bp->PoolLock);
+      (void)mtx_unlock(&bp->PoolLock);
       return NULL;
     }
   }
 
   Frame* victim = &bp->Frames[victimId];
-  mtx_lock(&victim->Lock);
+  (void)mtx_lock(&victim->Lock);
 
   // Secure loading frame
   victim->IsLoading = true;
@@ -115,7 +115,7 @@ uint8_t* BpFetchPage(BufferPool* bp, uint32_t pageId) {
   bool wasDirty = victim->IsDirty;
 
   // Unlock global pool lock
-  mtx_unlock(&bp->PoolLock);
+  (void)mtx_unlock(&bp->PoolLock);
 
   if (wasDirty && oldPageId != INVALID_PAGE_ID)
     _DiskWrite(oldPageId, bp->Memory[victimId]);
@@ -123,26 +123,26 @@ uint8_t* BpFetchPage(BufferPool* bp, uint32_t pageId) {
   _DiskRead(pageId, bp->Memory[victimId]);
 
   // Lock global pool lock for PageTable
-  mtx_lock(&bp->PoolLock);
+  (void)mtx_lock(&bp->PoolLock);
 
   // Protection from dupicates
   uint32_t existingFrameId = PtLookup(&bp->PageTable, pageId);
   if (existingFrameId != INVALID_FRAME_ID && existingFrameId != victimId) {
     Frame* existingFrame = &bp->Frames[existingFrameId];
-    mtx_lock(&existingFrame->Lock);
-    mtx_unlock(&bp->PoolLock);
+    (void)mtx_lock(&existingFrame->Lock);
+    (void)mtx_unlock(&bp->PoolLock);
 
     existingFrame->PinCount++;
     existingFrame->RefBit = true;
-    mtx_unlock(&existingFrame->Lock);
+    (void)mtx_unlock(&existingFrame->Lock);
 
     // Clear victim
-    mtx_lock(&victim->Lock);
+    (void)mtx_lock(&victim->Lock);
     victim->IsLoading = false;
     victim->PinCount = 0;
     victim->PageId = INVALID_PAGE_ID;
     victim->IsDirty = false;
-    mtx_unlock(&victim->Lock);
+    (void)mtx_unlock(&victim->Lock);
 
     return bp->Memory[existingFrameId];
   }
@@ -153,8 +153,8 @@ uint8_t* BpFetchPage(BufferPool* bp, uint32_t pageId) {
   if (!PtInsert(&bp->PageTable, pageId, victimId)) {
     victim->IsLoading = false;
     victim->PageId = INVALID_PAGE_ID;
-    mtx_unlock(&victim->Lock);
-    mtx_unlock(&bp->PoolLock);
+    (void)mtx_unlock(&victim->Lock);
+    (void)mtx_unlock(&bp->PoolLock);
     return NULL;
   }
 
@@ -164,21 +164,21 @@ uint8_t* BpFetchPage(BufferPool* bp, uint32_t pageId) {
   victim->RefBit = true;
   victim->IsLoading = false;
 
-  mtx_unlock(&victim->Lock);
-  mtx_unlock(&bp->PoolLock);
+  (void)mtx_unlock(&victim->Lock);
+  (void)mtx_unlock(&bp->PoolLock);
 
   return bp->Memory[victimId];
 }
 
 void BpUnpinPage(BufferPool* bp, uint32_t pageId, bool isDirty) {
-  mtx_lock(&bp->PoolLock);
+  (void)mtx_lock(&bp->PoolLock);
   uint32_t frameId = PtLookup(&bp->PageTable, pageId);
 
   if (frameId != INVALID_FRAME_ID) {
     Frame* f = &bp->Frames[frameId];
 
-    mtx_lock(&f->Lock);
-    mtx_unlock(&bp->PoolLock);
+    (void)mtx_lock(&f->Lock);
+    (void)mtx_unlock(&bp->PoolLock);
 
     if (f->PageId == pageId) {
       if (f->PinCount > 0)
@@ -187,7 +187,7 @@ void BpUnpinPage(BufferPool* bp, uint32_t pageId, bool isDirty) {
         f->IsDirty = true;
     }
 
-    mtx_unlock(&f->Lock);
+    (void)mtx_unlock(&f->Lock);
   } else
-    mtx_unlock(&bp->PoolLock);
+    (void)mtx_unlock(&bp->PoolLock);
 }

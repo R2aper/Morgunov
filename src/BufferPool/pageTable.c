@@ -1,4 +1,4 @@
-#include "page_table.h"
+#include "pageTable.h"
 
 static inline uint32_t _HashPageId(uint32_t id) {
   id = ((id >> 16) ^ id) * 0x45d9f3b;
@@ -16,9 +16,9 @@ void PtInit(PageTable* pt) {
     pt->Buckets[i] = NULL;
 
   for (int i = 0; i < HT_LOCK_STRIPES; i++)
-    mtx_init(&pt->Stripes[i], mtx_plain);
+    (void)mtx_init(&pt->Stripes[i], mtx_plain);
 
-  mtx_init(&pt->FreeListLock, mtx_plain);
+  (void)mtx_init(&pt->FreeListLock, mtx_plain);
 
   for (int i = 0; i < POOL_SIZE - 1; i++)
     pt->NodePool[i].Next = &pt->NodePool[i + 1];
@@ -35,23 +35,23 @@ void PtDestroy(PageTable* pt) {
 }
 
 HtNode* PtAllocNode(PageTable* pt) {
-  mtx_lock(&pt->FreeListLock);
+  (void)mtx_lock(&pt->FreeListLock);
   if (!pt->FreeList) { // out of pre-allocated nodes
-    mtx_unlock(&pt->FreeListLock);
+    (void)mtx_unlock(&pt->FreeListLock);
     return NULL;
   }
   HtNode* node = pt->FreeList;
   pt->FreeList = node->Next;
-  mtx_unlock(&pt->FreeListLock);
+  (void)mtx_unlock(&pt->FreeListLock);
 
   return node;
 }
 
 void PtFreeNode(PageTable* pt, HtNode* node) {
-  mtx_lock(&pt->FreeListLock);
+  (void)mtx_lock(&pt->FreeListLock);
   node->Next = pt->FreeList;
   pt->FreeList = node;
-  mtx_unlock(&pt->FreeListLock);
+  (void)mtx_unlock(&pt->FreeListLock);
 }
 
 uint32_t PtLookup(PageTable* pt, uint32_t pageId) {
@@ -59,17 +59,17 @@ uint32_t PtLookup(PageTable* pt, uint32_t pageId) {
   uint32_t bIdx = _GetBucketIdx(hash);
   uint32_t sIdx = _GetStripeIdx(hash);
 
-  mtx_lock(&pt->Stripes[sIdx]);
+  (void)mtx_lock(&pt->Stripes[sIdx]);
   HtNode* curr = pt->Buckets[bIdx];
   while (curr) {
     if (curr->PageId == pageId) {
       uint32_t fid = curr->FrameId;
-      mtx_unlock(&pt->Stripes[sIdx]);
+      (void)mtx_unlock(&pt->Stripes[sIdx]);
       return fid;
     }
     curr = curr->Next;
   }
-  mtx_unlock(&pt->Stripes[sIdx]);
+  (void)mtx_unlock(&pt->Stripes[sIdx]);
 
   return INVALID_FRAME_ID;
 }
@@ -79,14 +79,14 @@ bool PtInsert(PageTable* pt, uint32_t pageId, uint32_t frameId) {
   uint32_t bIdx = _GetBucketIdx(hash);
   uint32_t sIdx = _GetStripeIdx(hash);
 
-  mtx_lock(&pt->Stripes[sIdx]);
+  (void)mtx_lock(&pt->Stripes[sIdx]);
 
   // If an entry for this page already exists, update its FrameId in place
   HtNode* curr = pt->Buckets[bIdx];
   while (curr) {
     if (curr->PageId == pageId) {
       curr->FrameId = frameId;
-      mtx_unlock(&pt->Stripes[sIdx]);
+      (void)mtx_unlock(&pt->Stripes[sIdx]);
       return true;
     }
     curr = curr->Next;
@@ -94,7 +94,7 @@ bool PtInsert(PageTable* pt, uint32_t pageId, uint32_t frameId) {
 
   HtNode* newNode = PtAllocNode(pt);
   if (!newNode) { // Pool full
-    mtx_unlock(&pt->Stripes[sIdx]);
+    (void)mtx_unlock(&pt->Stripes[sIdx]);
 
     return false;
   }
@@ -104,7 +104,7 @@ bool PtInsert(PageTable* pt, uint32_t pageId, uint32_t frameId) {
   newNode->Next = pt->Buckets[bIdx];
   pt->Buckets[bIdx] = newNode;
 
-  mtx_unlock(&pt->Stripes[sIdx]);
+  (void)mtx_unlock(&pt->Stripes[sIdx]);
 
   return true;
 }
@@ -114,7 +114,7 @@ bool PtDelete(PageTable* pt, uint32_t pageId) {
   uint32_t bIdx = _GetBucketIdx(hash);
   uint32_t sIdx = _GetStripeIdx(hash);
 
-  mtx_lock(&pt->Stripes[sIdx]);
+  (void)mtx_lock(&pt->Stripes[sIdx]);
   HtNode* curr = pt->Buckets[bIdx];
   HtNode* prev = NULL;
 
@@ -126,13 +126,13 @@ bool PtDelete(PageTable* pt, uint32_t pageId) {
         prev->Next = curr->Next;
 
       PtFreeNode(pt, curr);
-      mtx_unlock(&pt->Stripes[sIdx]);
+      (void)mtx_unlock(&pt->Stripes[sIdx]);
       return true;
     }
     prev = curr;
     curr = curr->Next;
   }
-  mtx_unlock(&pt->Stripes[sIdx]);
+  (void)mtx_unlock(&pt->Stripes[sIdx]);
 
   return false;
 }

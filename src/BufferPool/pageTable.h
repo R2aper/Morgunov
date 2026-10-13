@@ -3,8 +3,10 @@
 #include "config.h"
 #include <stdbool.h>
 #include <stdint.h>
-#include <threads.h>
 
+#include "src/common/crossthreads.h"
+
+#define INVALID_FRAME_ID ((uint32_t)-1)
 #define INVALID_PAGE_ID ((uint32_t)-1)
 
 typedef struct HtNode {
