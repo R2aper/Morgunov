@@ -20,7 +20,8 @@ core_src = [
   'src/common/event.c',
   'src/network/connectionHandler.c',
   'src/bufferPool/pageTable.c',
-  'src/bufferPool/bufferPool.c'
+  'src/bufferPool/bufferPool.c',
+  'src/mqm/mprotocol.c'
 ]
 main_src = core_src + ['src/main.c']
 test_src = [

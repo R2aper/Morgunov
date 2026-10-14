@@ -44,6 +44,7 @@ typedef SOCKET MorguSocket;
 typedef int MorguSocket;
 #define MORGUSOCK_INVALID (-1)
 #define MORGUSOCK_CLOSE(s) close(s)
+#define MORGUSOCK_MAX_IO (1 << 30)
 #define MORGUSOCK_POLL(fds, n, ms) poll((fds), (nfds_t)(n), (ms))
 #endif // _WIN32
 

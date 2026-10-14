@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "mqm/mprotocol.h"
 #include "common/lstring.h"
 #include "network/connectionHandler.h"
 
@@ -46,4 +47,25 @@
   return 0;
 }*/
 
-int main(void) { LaunchConnectionHandler(); }
+int main(void) { 
+  /*MorgunovProtocolHeader header = {
+    .CommandID = 0x00,
+    .DataLength = 0x01,
+    .Version = 0x01
+  };
+  LString* str = FormatMorgunovProtocolHeader(&header);
+  printf(LStringGetData(str));
+  LaunchConnectionHandler();*/
+
+  MorguSocket listener;
+  MorguSocket client;
+
+  MorguSockInit();
+  listener = MorguSockListenTCP("5000", 16);
+  printf("initialized on port 5000\n");
+  client = MorguSockAccept(listener);
+  printf("accepted connection\n");
+  MorgunovProtocolHeader header = GetMorgunovProtocolHeader(&client);
+  LString* str = FormatMorgunovProtocolHeader(&header);
+  printf(LStringGetData(str));
+}
